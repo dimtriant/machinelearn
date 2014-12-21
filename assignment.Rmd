@@ -1,0 +1,121 @@
+---
+title: "Machine Learning Assignment"
+output: html_document
+---  
+  
+###Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).   
+  
+###Preprocessing
+
+Loading the required libraries:
+```{r cache=TRUE}
+library(caret)
+library(gbm)
+```
+
+The first thing we need to do is to download the training and testing data sets and load them as dataframes with the same names:
+
+```{r cache=TRUE}
+url_train <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+url_test <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+```
+
+```{r eval=FALSE}
+download.file(url=url_train,destfile="pml-training.csv")
+download.file(url=url_test,destfile="pml-testing.csv")
+```
+
+```{r cache=TRUE}
+training <- read.csv("pml-training.csv", na.strings=c("", "NA", "NULL"))
+testing <- read.csv("pml-testing.csv", na.strings=c("", "NA", "NULL"))
+```
+###Cleaning the Data
+
+First we will remove the columns that are not going to offer us anything as predictors such as IDs, names and timestamps. We will do that for both the training and testing datasets to be consistent
+
+```{r cache=TRUE}
+training <- training[, -which(names(training) %in% c('X', 'user_name', 'raw_timestamp_part_1', 'raw_timestamp_part_2', 'cvtd_timestamp', 'new_window', 'num_window'))]
+
+testing <- testing[, -which(names(testing) %in% c('X', 'user_name', 'raw_timestamp_part_1', 'raw_timestamp_part_2', 'cvtd_timestamp', 'new_window', 'num_window'))]
+```
+
+
+The training dataset contains columns with many NAs. To make sure that we only include useful predictors, we will remove all the columns that contain more than 50% NAs.
+
+```{r cache=TRUE}
+remove_vector <- colSums(is.na(training))/length(training[,1])<0.5
+training <- training[,remove_vector]
+testing <- testing[,remove_vector]
+```
+
+###Splitting the Data
+
+Now we will need to split the training data into a training and validation dataset since we want to perform cross-validation:
+
+```{r cache=TRUE}
+inTrain <- createDataPartition(y=training$classe, p=0.7, list=FALSE)
+training <- training[inTrain,]
+row.names(training) <- NULL
+validation <- training[-inTrain,]
+row.names(validation) <- NULL
+```
+
+###Creating the Model
+
+Now we will fit a model using the gbm method and performing a 5-fold cross-validation. The option to allow parallel processing has been enabled since the gbm method takes time to complete.
+
+```{r cache=TRUE, echo=FALSE}
+set.seed(123)
+fitControl <- trainControl(method = "cv", number = 5, allowParallel=TRUE)
+modelFit <- train(classe ~ ., data = training, method = "gbm", trControl = fitControl, verbose = FALSE)
+```
+
+```{r eval=FALSE}
+set.seed(123)
+fitControl <- trainControl(method = "cv", number = 5, allowParallel=TRUE)
+modelFit <- train(classe ~ ., data = training, method = "gbm", trControl = fitControl, verbose = FALSE)
+```
+
+###Cross-Validation
+
+Since we now have our model, we will test its accuracy on the validation set we created previously. To do that we fit the model we created to the validation set and run the confusionMatrix to test the accuracy of the model.
+
+```{r cache=TRUE, echo=FALSE}
+prediction <- predict(modelFit,validation[,-53])
+```
+
+```{r eval=FALSE}
+prediction <- predict(modelFit,validation[,-53])
+```
+
+```{r cache=TRUE}
+confusionMatrix(validation$classe, prediction)
+```
+
+We can see on the confusion matrix that the accuracy is 0.9767. The out of sample error is 1-accuracy so:
+
+```{r cache=TRUE}
+1-confusionMatrix(validation$classe, prediction)[[3]][[1]]
+```
+
+This tells us that the estimated out-of-sample error based on our fitted model is less than 3%. This was expected as our original training set had enough points to ensure high accuracy of the model.
+
+###Original Test Dataset
+
+The last thing that we will do is apply the generated model to the original 20 observation test set.
+
+```{r cache=TRUE, echo=FALSE}
+prediction_test <- predict(modelFit,testing[,-53])
+```
+
+```{r eval=FALSE}
+prediction_test <- predict(modelFit,testing[,-53])
+```
+
+The results are as follows:
+
+```{r cache=TRUE, echo=FALSE}
+prediction_test
+```
