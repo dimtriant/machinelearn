@@ -1,4 +1,4 @@
-machinelearn
-============
+Practical Machine Learning Assignment
+=====================================
 
-Coursera Machine Learning Assignment
+Rmd & HTML file for coursera practical machine learning.
